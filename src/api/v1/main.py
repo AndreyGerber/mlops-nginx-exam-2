@@ -52,3 +52,9 @@ def predict(features: Sentence):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Prediction error: {e}")
+
+@app.get("/health")
+def health():
+    """Health endpoint for api-v1."""
+    return {"status": "ok", "version": "1.6.42"}
+

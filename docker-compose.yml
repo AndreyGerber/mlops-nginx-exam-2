@@ -1,4 +1,54 @@
 services:
+  # --- API Version 1 (Standard version with 3 instances) ---
+  api-v1:
+    build:
+      context: .
+      dockerfile: src/api/v1/Dockerfile
+    # No fixed container_name allowed here due to scaling!
+    expose:
+      - "8000"
+    deploy:
+      replicas: 3
+
+  # --- API Version 2 (Debug version with 1 instance) ---
+  api-v2:
+    build:
+      context: .
+      dockerfile: src/api/v2/Dockerfile
+    container_name: api-v2
+    expose:
+      - "8000"
+
+  # --- Reverse Proxy (Nginx) ---
+  nginx:
+    build:
+      context: deployments/nginx/
+      dockerfile: Dockerfile
+    container_name: nginx_revproxy
+    ports:
+      - "8085:80"
+      - "443:443"
+    volumes:
+      - ./deployments/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./deployments/nginx/certs:/etc/nginx/certs:ro
+      - ./deployments/nginx/.htpasswd:/etc/nginx/.htpasswd:ro
+    depends_on:
+      - api-v1
+      - api-v2
+
+
+  # --- Nginx Metrics Translator for Prometheus ---
+  nginx_exporter:
+    image: nginx/nginx-prometheus-exporter:latest
+    container_name: nginx_exporter
+    ports:
+      - "9113:9113"
+    depends_on:
+      - nginx
+    environment:
+      SCRAPE_URI: http://nginx_revproxy:80/nginx_status
+
+
   prometheus:
     image: prom/prometheus:latest
     container_name: prometheus_server
@@ -8,7 +58,7 @@ services:
       - ./deployments/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
     depends_on:
-      - nginx
+      - nginx_exporter
 
   grafana:
     image: grafana/grafana:latest
